@@ -1,0 +1,101 @@
+// Prisma schema for Compiler Pipeline Visualizer
+// Supports Neon PostgreSQL with connection pooling
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model CompilationSession {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  sourceCode String   @map("source_code")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tokens          LexicalToken[]
+  syntaxTrees     SyntaxTree[]
+  symbolEntries   SymbolEntry[]
+  semanticInfos   SemanticInfo[]
+  intermediateCode IntermediateCode[]
+  compilationErrors CompilationError[]
+
+  @@map("compilation_sessions")
+}
+
+model LexicalToken {
+  id        String @id @default(uuid())
+  sessionId String @map("session_id")
+  type      String
+  value     String
+  line      Int
+  column    Int
+
+  session CompilationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("lexical_tokens")
+}
+
+model SyntaxTree {
+  id        String @id @default(uuid())
+  sessionId String @map("session_id")
+  treeJson  String @map("tree_json") // JSON stringified AST
+
+  session CompilationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("syntax_tree")
+}
+
+model SymbolEntry {
+  id        String  @id @default(uuid())
+  sessionId String  @map("session_id")
+  name      String
+  type      String  // int, float, bool, string, function, void
+  scope     String  // global, function_name, block_id
+  metadata  String? // json or description (e.g. line, params, kind)
+
+  session CompilationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("symbol_table")
+}
+
+model SemanticInfo {
+  id        String  @id @default(uuid())
+  sessionId String  @map("session_id")
+  errorType String? @map("error_type")
+  message   String
+  line      Int?
+  column    Int?
+
+  session CompilationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("semantic_info")
+}
+
+model IntermediateCode {
+  id         String @id @default(uuid())
+  sessionId  String @map("session_id")
+  irCode     String @map("ir_code")
+  lineNumber Int    @map("line_number")
+
+  session CompilationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("intermediate_code")
+}
+
+model CompilationError {
+  id        String @id @default(uuid())
+  sessionId String @map("session_id")
+  phase     String // LEXICAL, SYNTAX, SEMANTIC, etc.
+  errorMsg  String @map("error_msg")
+  severity  String // ERROR, WARNING
+  line      Int?
+  column    Int?
+
+  session CompilationSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("compilation_errors")
+}

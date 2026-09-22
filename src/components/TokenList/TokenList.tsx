@@ -53,15 +53,15 @@ export const TokenList: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 rounded-xl border border-zinc-800 overflow-hidden shadow-sm">
+    <div className="flex flex-col h-full bg-white dark:bg-zinc-950 rounded-lg border border-slate-200 dark:border-zinc-800/80 overflow-hidden shadow-2xs transition-colors">
       {/* Header controls: Search & Filter */}
-      <div className="p-3 border-b border-zinc-800 bg-zinc-900/60 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-2.5 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-900/60 flex flex-wrap items-center justify-between gap-2.5">
         <div className="flex items-center gap-2">
-          <Hash className="w-4 h-4 text-indigo-400" />
-          <h3 className="text-xs font-semibold text-zinc-200">
-            Lexical Token Stream
+          <Hash className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+          <h3 className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+            Token Stream
           </h3>
-          <span className="text-[11px] text-zinc-400 font-mono">
+          <span className="text-[11px] text-slate-500 dark:text-zinc-400 font-mono">
             ({filteredTokens.length} / {tokens.length})
           </span>
         </div>
@@ -69,23 +69,23 @@ export const TokenList: React.FC = () => {
         <div className="flex items-center gap-2">
           {/* Search bar */}
           <div className="relative">
-            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-3 h-3 text-slate-400 dark:text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search value or type..."
+              placeholder="Search tokens..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-zinc-800 text-zinc-200 text-xs pl-8 pr-3 py-1 rounded-lg border border-zinc-700 focus:outline-none focus:border-indigo-500 w-44 sm:w-56"
+              className="bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs pl-7 pr-2.5 py-1 rounded-md border border-slate-200 dark:border-zinc-700 focus:outline-none focus:border-indigo-500 w-36 sm:w-48 shadow-2xs"
             />
           </div>
 
           {/* Type Filter */}
           <div className="flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-zinc-400" />
+            <Filter className="w-3 h-3 text-slate-400 dark:text-zinc-400" />
             <select
               value={selectedTypeFilter}
               onChange={(e) => setSelectedTypeFilter(e.target.value)}
-              className="bg-zinc-800 text-zinc-200 text-xs px-2 py-1 rounded-lg border border-zinc-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              className="bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs px-2 py-1 rounded-md border border-slate-200 dark:border-zinc-700 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
             >
               {tokenTypesList.map((type) => (
                 <option key={type} value={type}>
@@ -100,14 +100,14 @@ export const TokenList: React.FC = () => {
       {/* Table Body */}
       <div className="flex-1 overflow-auto max-h-[480px]">
         {filteredTokens.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-zinc-500 text-xs font-mono">
+          <div className="flex flex-col items-center justify-center h-48 text-slate-400 dark:text-zinc-500 text-xs font-mono">
             {tokens.length === 0
               ? 'No tokens generated yet. Click "Compile" or "Run Pipeline".'
               : 'No tokens matched your filter criteria.'}
           </div>
         ) : (
           <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-zinc-900/90 text-zinc-400 sticky top-0 border-b border-zinc-800 text-[11px] font-mono">
+            <thead className="bg-slate-50 dark:bg-zinc-900/90 text-slate-600 dark:text-zinc-400 sticky top-0 border-b border-slate-200 dark:border-zinc-800 text-[11px] font-mono">
               <tr>
                 <th className="py-2 px-3">#</th>
                 <th className="py-2 px-3">Token Type</th>
@@ -117,35 +117,37 @@ export const TokenList: React.FC = () => {
                 <th className="py-2 px-3 text-right">Inspect</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-900 font-mono text-[11px]">
+            <tbody className="divide-y divide-slate-100 dark:divide-zinc-900 font-mono text-[11px]">
               {filteredTokens.map((token, index) => {
                 const isSelected = selectedItem?.id === token.id;
                 return (
                   <tr
                     key={token.id || index}
                     onClick={() => setSelectedItem(token, 'token')}
-                    className={`cursor-pointer transition hover:bg-zinc-900/70 ${
-                      isSelected ? 'bg-indigo-950/40 text-indigo-200' : 'text-zinc-300'
+                    className={`cursor-pointer transition hover:bg-slate-50 dark:hover:bg-zinc-900/70 ${
+                      isSelected
+                        ? 'bg-indigo-50/70 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 font-medium'
+                        : 'text-slate-700 dark:text-zinc-300'
                     }`}
                   >
-                    <td className="py-2 px-3 text-zinc-400">{index + 1}</td>
+                    <td className="py-2 px-3 text-slate-400 dark:text-zinc-500">{index + 1}</td>
                     <td className="py-2 px-3">
                       <Badge variant={getBadgeVariant(token.type)}>
                         {token.type}
                       </Badge>
                     </td>
-                    <td className="py-2 px-3 font-semibold text-zinc-100 max-w-[200px] truncate">
+                    <td className="py-2 px-3 font-semibold text-slate-900 dark:text-zinc-100 max-w-[200px] truncate">
                       {token.value}
                     </td>
-                    <td className="py-2 px-3 text-zinc-400">{token.line}</td>
-                    <td className="py-2 px-3 text-zinc-400">{token.column}</td>
+                    <td className="py-2 px-3 text-slate-500 dark:text-zinc-400">{token.line}</td>
+                    <td className="py-2 px-3 text-slate-500 dark:text-zinc-400">{token.column}</td>
                     <td className="py-2 px-3 text-right">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedItem(token, 'token');
                         }}
-                        className="text-zinc-400 hover:text-indigo-400 transition"
+                        className="text-slate-400 hover:text-indigo-600 dark:text-zinc-400 dark:hover:text-indigo-400 transition"
                         title="Inspect Token Details"
                       >
                         <Eye className="w-3.5 h-3.5 inline" />

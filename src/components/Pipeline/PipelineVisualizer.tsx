@@ -6,12 +6,12 @@ import { ChevronRight } from 'lucide-react';
 
 export const PipelineVisualizer: React.FC = () => {
   return (
-    <div className="w-full bg-zinc-950 p-4 rounded-xl border border-zinc-800 shadow-md">
+    <div className="w-full bg-white dark:bg-zinc-950 p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm transition-colors duration-150">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
           Compiler Pipeline Architecture Flow
         </h2>
-        <span className="text-[11px] text-zinc-400 font-mono">
+        <span className="text-[11px] text-slate-400 dark:text-zinc-500 font-mono">
           Front-End Analysis Pipeline
         </span>
       </div>
@@ -26,7 +26,7 @@ export const PipelineVisualizer: React.FC = () => {
           itemUnit="tokens"
         />
 
-        <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
+        <ChevronRight className="w-4 h-4 text-slate-300 dark:text-zinc-600 shrink-0" />
 
         <PhaseCard
           phaseKey="syntax"
@@ -36,7 +36,7 @@ export const PipelineVisualizer: React.FC = () => {
           itemUnit="AST nodes"
         />
 
-        <ChevronRight className="w-4 h-4 text-zinc-600 shrink-0" />
+        <ChevronRight className="w-4 h-4 text-slate-300 dark:text-zinc-600 shrink-0" />
 
         <PhaseCard
           phaseKey="semantic"

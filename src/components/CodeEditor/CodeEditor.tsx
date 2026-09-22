@@ -9,7 +9,7 @@ import { EditorControls } from './EditorControls';
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
   loading: () => (
-    <div className="flex items-center justify-center h-full bg-zinc-950 text-zinc-500 font-mono text-xs">
+    <div className="flex items-center justify-center h-full bg-slate-50 dark:bg-zinc-950 text-slate-400 dark:text-zinc-500 font-mono text-xs">
       Loading Monaco Code Editor...
     </div>
   ),
@@ -35,7 +35,7 @@ export const CodeEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 rounded-xl border border-zinc-800 overflow-hidden shadow-xl">
+    <div className="flex flex-col h-full bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden shadow-sm transition-colors duration-150">
       <EditorControls />
       <div className="relative flex-1 w-full min-h-[350px]">
         <MonacoEditor

@@ -105,10 +105,10 @@ export default function Home() {
         </div>
 
         {/* Right Column: Visualization Tabs & Inspector (7 cols on lg, 7 on xl) */}
-        <div className="lg:col-span-6 xl:col-span-7 flex flex-col h-[580px] lg:h-[calc(100vh-210px)] bg-zinc-950 rounded-xl border border-zinc-800 shadow-xl overflow-hidden">
+        <div className="lg:col-span-6 xl:col-span-7 flex flex-col h-[580px] lg:h-[calc(100vh-200px)] bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm overflow-hidden transition-colors duration-150">
           {/* Tab Header Bar */}
-          <div className="flex items-center justify-between px-3 bg-zinc-900/90 border-b border-zinc-800 overflow-x-auto scrollbar-none">
-            <div className="flex items-center gap-1 py-2">
+          <div className="flex items-center justify-between px-3 bg-slate-50 dark:bg-zinc-900/90 border-b border-slate-200 dark:border-zinc-800 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1 py-1.5">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activePhase === (tab.key as any);
@@ -118,20 +118,20 @@ export default function Home() {
                     onClick={() => setActivePhase(tab.key as any)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
                       isActive
-                        ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-zinc-700'
-                        : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
+                        ? 'bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-xs border border-slate-200/80 dark:border-zinc-700'
+                        : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800/40'
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
                     <span>{tab.label}</span>
                     {tab.count !== undefined && (
                       <span
-                        className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                        className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-medium ${
                           tab.badgeVariant === 'rose'
-                            ? 'bg-rose-500/20 text-rose-300 font-bold'
+                            ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold'
                             : isActive
-                            ? 'bg-indigo-500/20 text-indigo-300'
-                            : 'bg-zinc-800 text-zinc-400'
+                            ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300'
+                            : 'bg-slate-200/80 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
                         }`}
                       >
                         {tab.count}
@@ -144,7 +144,7 @@ export default function Home() {
           </div>
 
           {/* Tab Body */}
-          <div className="flex-1 overflow-hidden p-3 bg-zinc-950/70">
+          <div className="flex-1 overflow-hidden p-2.5 bg-slate-50/50 dark:bg-zinc-950/70">
             {renderTabContent()}
           </div>
         </div>

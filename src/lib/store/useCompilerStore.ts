@@ -43,7 +43,9 @@ const DEFAULT_CODE = CODE_PRESETS[0].code;
 export const useCompilerStore = create<CompilerStore>((set, get) => ({
   sourceCode: typeof window !== 'undefined' ? localStorage.getItem('cpv_source_code') || DEFAULT_CODE : DEFAULT_CODE,
   fontSize: 14,
-  theme: 'dark',
+  theme: typeof window !== 'undefined' 
+    ? ((localStorage.getItem('cpv_theme') as 'dark' | 'light') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+    : 'dark',
   isCompiling: false,
   activePhase: 'lexical',
   tokens: [],
@@ -73,7 +75,8 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
   toggleTheme: () =>
     set((state) => {
       const next = state.theme === 'dark' ? 'light' : 'dark';
-      if (typeof document !== 'undefined') {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cpv_theme', next);
         if (next === 'dark') {
           document.documentElement.classList.add('dark');
         } else {

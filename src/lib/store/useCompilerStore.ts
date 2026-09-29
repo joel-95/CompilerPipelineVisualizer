@@ -6,6 +6,9 @@ import {
   SymbolEntry,
   CompilationError,
   PipelineResult,
+  TACInstruction,
+  OptimizationRecord,
+  AsmInstruction,
 } from '../compiler/types';
 import { CompilerPipeline } from '../compiler/Pipeline';
 import { CODE_PRESETS } from '../examples/codePresets';
@@ -22,6 +25,10 @@ interface CompilerStore {
   ast: ProgramNode | null;
   symbolTable: SymbolEntry[];
   errors: CompilationError[];
+  tac: TACInstruction[];
+  optimizedTac: TACInstruction[];
+  optimizations: OptimizationRecord[];
+  assembly: AsmInstruction[];
   phases: PipelineResult['phases'];
   selectedItem: any | null;
   selectedItemType: 'token' | 'astNode' | 'symbol' | null;
@@ -43,13 +50,19 @@ const DEFAULT_CODE = CODE_PRESETS[0].code;
 export const useCompilerStore = create<CompilerStore>((set, get) => ({
   sourceCode: typeof window !== 'undefined' ? localStorage.getItem('cpv_source_code') || DEFAULT_CODE : DEFAULT_CODE,
   fontSize: 14,
-  theme: 'dark',
+  theme: typeof window !== 'undefined' 
+    ? ((localStorage.getItem('cpv_theme') as 'dark' | 'light') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+    : 'dark',
   isCompiling: false,
   activePhase: 'lexical',
   tokens: [],
   ast: null,
   symbolTable: [],
   errors: [],
+  tac: [],
+  optimizedTac: [],
+  optimizations: [],
+  assembly: [],
   phases: {
     lexical: { status: 'idle', executionTimeMs: 0, itemCount: 0 },
     syntax: { status: 'idle', executionTimeMs: 0, itemCount: 0 },
@@ -73,7 +86,8 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
   toggleTheme: () =>
     set((state) => {
       const next = state.theme === 'dark' ? 'light' : 'dark';
-      if (typeof document !== 'undefined') {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cpv_theme', next);
         if (next === 'dark') {
           document.documentElement.classList.add('dark');
         } else {
@@ -104,6 +118,10 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
       ast: null,
       symbolTable: [],
       errors: [],
+      tac: [],
+      optimizedTac: [],
+      optimizations: [],
+      assembly: [],
       selectedItem: null,
       selectedItemType: null,
       phases: {
@@ -147,6 +165,10 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
         ast: resData.ast,
         symbolTable: resData.symbolTable,
         errors: resData.errors,
+        tac: resData.tac,
+        optimizedTac: resData.optimizedTac,
+        optimizations: resData.optimizations,
+        assembly: resData.assembly,
         phases: resData.phases,
         isCompiling: false,
       });

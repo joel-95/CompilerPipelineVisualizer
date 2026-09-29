@@ -497,34 +497,43 @@ export class SemanticAnalyzer {
     }
 
     const expectedParams = symbol.params || [];
-    if (node.args.length !== expectedParams.length) {
+    
+    // Special case for variadic built-in C functions like printf and scanf
+    const isVariadic = node.callee === 'printf' || node.callee === 'scanf';
+
+    if (!isVariadic && node.args.length !== expectedParams.length) {
       this.errorManager.addError(
         'SEMANTIC',
-        `Function '${node.callee}' expects ${expectedParams.length} arguments, but got ${node.args.length}`,
+        `Function '${node.callee}' expects ${expectedParams.length} arguments, got ${node.args.length}`,
         node.line,
         node.column,
-        `Provide the exact arguments required by '${node.callee}'.`
+        `Provide exactly ${expectedParams.length} arguments.`
       );
     }
 
-    // Validate argument types
-    const checkCount = Math.min(node.args.length, expectedParams.length);
-    for (let i = 0; i < checkCount; i++) {
-      const argType = this.analyzeNode(node.args[i]);
-      const paramExpected = expectedParams[i].type;
-      if (!this.areTypesCompatible(paramExpected, argType)) {
-        this.errorManager.addError(
-          'SEMANTIC',
-          `Argument ${i + 1} of '${node.callee}' expects type '${paramExpected}', got '${argType}'`,
-          node.args[i].line,
-          node.args[i].column
-        );
+    // Analyze all arguments passed
+    for (let i = 0; i < node.args.length; i++) {
+      const argExpr = node.args[i];
+      const argType = this.analyzeNode(argExpr);
+      argExpr.inferredType = argType;
+
+      // Only type-check non-variadic arguments
+      if (!isVariadic && i < expectedParams.length) {
+        const expectedType = expectedParams[i].type;
+        if (!this.areTypesCompatible(expectedType, argType)) {
+          this.errorManager.addError(
+            'SEMANTIC',
+            `Argument ${i + 1} of '${node.callee}' must be '${expectedType}', got '${argType}'`,
+            argExpr.line,
+            argExpr.column,
+            `Match the parameter type '${expectedType}'.`
+          );
+        }
       }
     }
 
-    const returnType = (symbol.returnType as DataType) || 'void';
-    node.inferredType = returnType;
-    return returnType;
+    node.inferredType = symbol.returnType || 'unknown';
+    return node.inferredType;
   }
 
   private analyzeIdentifier(node: IdentifierNode): DataType {

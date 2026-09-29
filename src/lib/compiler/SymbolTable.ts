@@ -25,6 +25,18 @@ export class SymbolTable {
       children: [],
       symbols: new Map(),
     };
+    
+    // Inject standard C library built-ins
+    const builtIns: SymbolEntry[] = [
+      { id: 'sym-builtin-1', name: 'printf', type: 'function', returnType: 'void', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
+      { id: 'sym-builtin-2', name: 'scanf', type: 'function', returnType: 'int', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
+    ];
+    
+    for (const b of builtIns) {
+      this.rootScope.symbols.set(b.name, b);
+      this.allSymbols.push(b);
+    }
+
     this.currentScope = this.rootScope;
   }
 
@@ -126,8 +138,21 @@ export class SymbolTable {
       children: [],
       symbols: new Map(),
     };
-    this.currentScope = this.rootScope;
+    
     this.scopeCounter = 0;
     this.allSymbols = [];
+    
+    // Inject standard C library built-ins
+    const builtIns: SymbolEntry[] = [
+      { id: 'sym-builtin-1', name: 'printf', type: 'function', returnType: 'void', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
+      { id: 'sym-builtin-2', name: 'scanf', type: 'function', returnType: 'int', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
+    ];
+    
+    for (const b of builtIns) {
+      this.rootScope.symbols.set(b.name, b);
+      this.allSymbols.push(b);
+    }
+    
+    this.currentScope = this.rootScope;
   }
 }

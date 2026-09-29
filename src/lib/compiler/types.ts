@@ -163,6 +163,63 @@ export interface PhaseStatus {
   summary?: string;
 }
 
+// ─── Intermediate Representation (Three-Address Code) ────────────────────────
+
+export type TACKind =
+  | 'assign'      // result = arg1
+  | 'binary'      // result = arg1 op arg2
+  | 'unary'       // result = op arg1
+  | 'copy'        // result = arg1  (alias for assign between temps)
+  | 'label'       // label:
+  | 'jump'        // goto label
+  | 'cjump'       // if arg1 goto label  /  ifFalse arg1 goto label
+  | 'call'        // result = call callee, nArgs
+  | 'param'       // param arg1
+  | 'return'      // return arg1?
+  | 'nop';        // no-op placeholder
+
+export interface TACInstruction {
+  id: string;
+  kind: TACKind;
+  result?: string;   // destination temp / variable
+  arg1?: string;     // first operand
+  arg2?: string;     // second operand
+  op?: string;       // operator (+, -, *, /, <, >, ==, !=, <=, >=)
+  label?: string;    // for jump / label instructions
+  nArgs?: number;    // number of args for call
+  sourceLineRef?: number;
+}
+
+// ─── Optimizer ───────────────────────────────────────────────────────────────
+
+export type OptimizationKind =
+  | 'constant-folding'
+  | 'dead-code-elimination'
+  | 'copy-propagation'
+  | 'constant-propagation';
+
+export interface OptimizationRecord {
+  id: string;
+  kind: OptimizationKind;
+  description: string;
+  before: string;   // human-readable before
+  after: string;    // human-readable after (or 'removed')
+}
+
+// ─── Target Code (pseudo-assembly) ──────────────────────────────────────────
+
+export interface AsmInstruction {
+  id: string;
+  address: string;        // e.g. "0x0000"
+  opcode: string;         // mov, add, sub, mul, cmp, jmp, …
+  operands: string;       // e.g. "rax, rbx"
+  comment?: string;       // source annotation
+  isLabel?: boolean;      // true for label pseudo-instructions
+  labelName?: string;
+}
+
+// ─── Pipeline Result ─────────────────────────────────────────────────────────
+
 export interface PipelineResult {
   sessionId: string;
   sourceCode: string;
@@ -170,12 +227,16 @@ export interface PipelineResult {
   ast: ProgramNode | null;
   symbolTable: SymbolEntry[];
   errors: CompilationError[];
+  tac: TACInstruction[];
+  optimizedTac: TACInstruction[];
+  optimizations: OptimizationRecord[];
+  assembly: AsmInstruction[];
   phases: {
     lexical: PhaseStatus;
     syntax: PhaseStatus;
     semantic: PhaseStatus;
-    intermediate?: PhaseStatus;
-    optimizer?: PhaseStatus;
-    target?: PhaseStatus;
+    intermediate: PhaseStatus;
+    optimizer: PhaseStatus;
+    target: PhaseStatus;
   };
 }

@@ -6,6 +6,9 @@ import {
   SymbolEntry,
   CompilationError,
   PipelineResult,
+  TACInstruction,
+  OptimizationRecord,
+  AsmInstruction,
 } from '../compiler/types';
 import { CompilerPipeline } from '../compiler/Pipeline';
 import { CODE_PRESETS } from '../examples/codePresets';
@@ -22,6 +25,10 @@ interface CompilerStore {
   ast: ProgramNode | null;
   symbolTable: SymbolEntry[];
   errors: CompilationError[];
+  tac: TACInstruction[];
+  optimizedTac: TACInstruction[];
+  optimizations: OptimizationRecord[];
+  assembly: AsmInstruction[];
   phases: PipelineResult['phases'];
   selectedItem: any | null;
   selectedItemType: 'token' | 'astNode' | 'symbol' | null;
@@ -52,6 +59,10 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
   ast: null,
   symbolTable: [],
   errors: [],
+  tac: [],
+  optimizedTac: [],
+  optimizations: [],
+  assembly: [],
   phases: {
     lexical: { status: 'idle', executionTimeMs: 0, itemCount: 0 },
     syntax: { status: 'idle', executionTimeMs: 0, itemCount: 0 },
@@ -107,6 +118,10 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
       ast: null,
       symbolTable: [],
       errors: [],
+      tac: [],
+      optimizedTac: [],
+      optimizations: [],
+      assembly: [],
       selectedItem: null,
       selectedItemType: null,
       phases: {
@@ -150,6 +165,10 @@ export const useCompilerStore = create<CompilerStore>((set, get) => ({
         ast: resData.ast,
         symbolTable: resData.symbolTable,
         errors: resData.errors,
+        tac: resData.tac,
+        optimizedTac: resData.optimizedTac,
+        optimizations: resData.optimizations,
+        assembly: resData.assembly,
         phases: resData.phases,
         isCompiling: false,
       });

@@ -1,5 +1,7 @@
-// Compiler Pipeline Orchestrator (Phase 1)
-import { PipelineResult, Token, ProgramNode, SymbolEntry, CompilationError } from './types';
+import { IRGenerator } from './IRGenerator';
+import { Optimizer } from './Optimizer';
+import { TargetCodeGenerator } from './TargetCodeGenerator';
+import { PipelineResult, Token, ProgramNode, SymbolEntry, CompilationError, TACInstruction, OptimizationRecord, AsmInstruction } from './types';
 import { LexicalAnalyzer } from './LexicalAnalyzer';
 import { SyntaxAnalyzer } from './SyntaxAnalyzer';
 import { SemanticAnalyzer } from './SemanticAnalyzer';
@@ -11,12 +13,18 @@ export class CompilerPipeline {
   private lexer: LexicalAnalyzer;
   private parser: SyntaxAnalyzer;
   private semanticAnalyzer: SemanticAnalyzer;
+  private irGenerator: IRGenerator;
+  private optimizer: Optimizer;
+  private targetCodeGenerator: TargetCodeGenerator;
 
   constructor() {
     this.errorManager = new ErrorManager();
     this.lexer = new LexicalAnalyzer(this.errorManager);
     this.parser = new SyntaxAnalyzer(this.errorManager);
     this.semanticAnalyzer = new SemanticAnalyzer(new SymbolTable(), this.errorManager);
+    this.irGenerator = new IRGenerator();
+    this.optimizer = new Optimizer();
+    this.targetCodeGenerator = new TargetCodeGenerator();
   }
 
   public run(sourceCode: string, sessionId: string = `sess-${Date.now()}`): PipelineResult {
@@ -88,6 +96,62 @@ export class CompilerPipeline {
       summary: `Resolved ${symbols.length} symbols across active scopes.`,
     };
 
+    // Initialize backend structures
+    let tac: TACInstruction[] = [];
+    let optimizedTac: TACInstruction[] = [];
+    let optimizations: OptimizationRecord[] = [];
+    let assembly: AsmInstruction[] = [];
+
+    let irStatus: 'pending' | 'success' | 'error' | 'idle' = 'idle';
+    let optStatus: 'pending' | 'success' | 'error' | 'idle' = 'idle';
+    let targetStatus: 'pending' | 'success' | 'error' | 'idle' = 'idle';
+
+    let irTime = 0;
+    let optTime = 0;
+    let targetTime = 0;
+
+    // Only run backend phases if semantic phase passed
+    if (ast && semStatus !== 'error') {
+      // 4. Intermediate Code Generation
+      const irStart = performance.now();
+      try {
+        tac = this.irGenerator.generate(ast);
+        irTime = Number((performance.now() - irStart).toFixed(2));
+        irStatus = 'success';
+      } catch (e: any) {
+        irTime = Number((performance.now() - irStart).toFixed(2));
+        irStatus = 'error';
+      }
+
+      // 5. Code Optimization
+      if (irStatus === 'success') {
+        const optStart = performance.now();
+        try {
+          const optResult = this.optimizer.optimize(tac);
+          optimizedTac = optResult.optimized;
+          optimizations = optResult.records;
+          optTime = Number((performance.now() - optStart).toFixed(2));
+          optStatus = 'success';
+        } catch (e: any) {
+          optTime = Number((performance.now() - optStart).toFixed(2));
+          optStatus = 'error';
+        }
+      }
+
+      // 6. Target Code Generation
+      if (optStatus === 'success') {
+        const tgtStart = performance.now();
+        try {
+          assembly = this.targetCodeGenerator.generate(optimizedTac);
+          targetTime = Number((performance.now() - tgtStart).toFixed(2));
+          targetStatus = 'success';
+        } catch (e: any) {
+          targetTime = Number((performance.now() - tgtStart).toFixed(2));
+          targetStatus = 'error';
+        }
+      }
+    }
+
     return {
       sessionId,
       sourceCode,
@@ -95,27 +159,31 @@ export class CompilerPipeline {
       ast,
       symbolTable: symbols,
       errors: this.errorManager.getErrors(),
+      tac,
+      optimizedTac,
+      optimizations,
+      assembly,
       phases: {
         lexical: lexicalStatus,
         syntax: syntaxPhase,
         semantic: semanticPhase,
         intermediate: {
-          status: 'idle',
-          executionTimeMs: 0,
-          itemCount: 0,
-          summary: 'Phase 2: Intermediate Three-Address Code',
+          status: irStatus,
+          executionTimeMs: irTime,
+          itemCount: tac.length,
+          summary: `Generated ${tac.length} TAC instructions.`,
         },
         optimizer: {
-          status: 'idle',
-          executionTimeMs: 0,
-          itemCount: 0,
-          summary: 'Phase 2: Code Optimizer',
+          status: optStatus,
+          executionTimeMs: optTime,
+          itemCount: optimizations.length,
+          summary: `Applied ${optimizations.length} optimization passes.`,
         },
         target: {
-          status: 'idle',
-          executionTimeMs: 0,
-          itemCount: 0,
-          summary: 'Phase 2: Assembly Target Code',
+          status: targetStatus,
+          executionTimeMs: targetTime,
+          itemCount: assembly.length,
+          summary: `Generated ${assembly.length} x86-64 assembly instructions.`,
         },
       },
     };

@@ -1,7 +1,20 @@
 import { IRGenerator } from './IRGenerator';
 import { Optimizer } from './Optimizer';
 import { TargetCodeGenerator } from './TargetCodeGenerator';
-import { PipelineResult, Token, ProgramNode, SymbolEntry, CompilationError, TACInstruction, OptimizationRecord, AsmInstruction } from './types';
+import { RegisterAllocator } from './RegisterAllocator';
+import { ErrorAnalyzer } from './ErrorAnalyzer';
+import {
+  PipelineResult,
+  Token,
+  ProgramNode,
+  SymbolEntry,
+  TACInstruction,
+  OptimizationRecord,
+  AsmInstruction,
+  BasicBlock,
+  RegisterAllocationResult,
+  CompilationMetrics,
+} from './types';
 import { LexicalAnalyzer } from './LexicalAnalyzer';
 import { SyntaxAnalyzer } from './SyntaxAnalyzer';
 import { SemanticAnalyzer } from './SemanticAnalyzer';
@@ -13,22 +26,25 @@ export class CompilerPipeline {
   private lexer: LexicalAnalyzer;
   private parser: SyntaxAnalyzer;
   private semanticAnalyzer: SemanticAnalyzer;
+  private errorAnalyzer: ErrorAnalyzer;
   private irGenerator: IRGenerator;
   private optimizer: Optimizer;
   private targetCodeGenerator: TargetCodeGenerator;
+  private registerAllocator: RegisterAllocator;
 
   constructor() {
     this.errorManager = new ErrorManager();
     this.lexer = new LexicalAnalyzer(this.errorManager);
     this.parser = new SyntaxAnalyzer(this.errorManager);
     this.semanticAnalyzer = new SemanticAnalyzer(new SymbolTable(), this.errorManager);
+    this.errorAnalyzer = new ErrorAnalyzer(this.errorManager);
     this.irGenerator = new IRGenerator();
     this.optimizer = new Optimizer();
     this.targetCodeGenerator = new TargetCodeGenerator();
+    this.registerAllocator = new RegisterAllocator();
   }
 
   public run(sourceCode: string, sessionId: string = `sess-${Date.now()}`): PipelineResult {
-    const startTime = performance.now();
     this.errorManager.setSourceCode(sourceCode);
 
     // 1. Lexical Analysis Phase
@@ -74,7 +90,7 @@ export class CompilerPipeline {
     let semTime = 0;
     let semStatus: 'pending' | 'success' | 'warning' | 'error' = 'pending';
 
-    if (ast) {
+    if (ast && synStatus !== 'error') {
       const semStart = performance.now();
       try {
         const { symbolTable } = this.semanticAnalyzer.analyze(ast);
@@ -96,11 +112,25 @@ export class CompilerPipeline {
       summary: `Resolved ${symbols.length} symbols across active scopes.`,
     };
 
+    // Run Static Diagnostic Analysis
+    const staticReport = this.errorAnalyzer.analyze(ast, sourceCode);
+
     // Initialize backend structures
     let tac: TACInstruction[] = [];
     let optimizedTac: TACInstruction[] = [];
     let optimizations: OptimizationRecord[] = [];
+    let basicBlocks: BasicBlock[] = [];
     let assembly: AsmInstruction[] = [];
+    let registerAllocation: RegisterAllocationResult = {
+      allocations: {},
+      spills: [],
+      spillOffsets: {},
+      interferenceGraph: { nodes: [], edges: [], adjacency: {} },
+      liveRanges: [],
+      registerPressure: [],
+      maxPressure: 0,
+      availableRegisters: [],
+    };
 
     let irStatus: 'pending' | 'success' | 'error' | 'idle' = 'idle';
     let optStatus: 'pending' | 'success' | 'error' | 'idle' = 'idle';
@@ -110,12 +140,13 @@ export class CompilerPipeline {
     let optTime = 0;
     let targetTime = 0;
 
-    // Only run backend phases if semantic phase passed
-    if (ast && semStatus !== 'error') {
+    // Only run backend phases if front-end phases passed without fatal errors
+    if (ast && semStatus !== 'error' && synStatus !== 'error') {
       // 4. Intermediate Code Generation
       const irStart = performance.now();
       try {
         tac = this.irGenerator.generate(ast);
+        basicBlocks = this.irGenerator.toBasicBlocks(tac);
         irTime = Number((performance.now() - irStart).toFixed(2));
         irStatus = 'success';
       } catch (e: any) {
@@ -138,11 +169,13 @@ export class CompilerPipeline {
         }
       }
 
-      // 6. Target Code Generation
+      // 6. Register Allocation & Target Code Generation
       if (optStatus === 'success') {
         const tgtStart = performance.now();
         try {
-          assembly = this.targetCodeGenerator.generate(optimizedTac);
+          const targetTac = optimizedTac.length > 0 ? optimizedTac : tac;
+          registerAllocation = this.registerAllocator.allocate(targetTac);
+          assembly = this.targetCodeGenerator.generate(targetTac, registerAllocation);
           targetTime = Number((performance.now() - tgtStart).toFixed(2));
           targetStatus = 'success';
         } catch (e: any) {
@@ -151,6 +184,22 @@ export class CompilerPipeline {
         }
       }
     }
+
+    const reductionPercent = tac.length > 0
+      ? Number((((tac.length - optimizedTac.length) / tac.length) * 100).toFixed(1))
+      : 0;
+
+    const metrics: CompilationMetrics = {
+      cyclomaticComplexity: staticReport.complexity.cyclomaticComplexity,
+      astDepth: staticReport.complexity.depth,
+      tokenCount: tokens.filter((t) => t.type !== 'EOF').length,
+      lineCount: sourceCode.split('\n').length,
+      tacCount: tac.length,
+      optimizedTacCount: optimizedTac.length,
+      asmCount: assembly.length,
+      sizeReductionPercent: Math.max(0, reductionPercent),
+      spillCount: registerAllocation.spills.length,
+    };
 
     return {
       sessionId,
@@ -162,7 +211,10 @@ export class CompilerPipeline {
       tac,
       optimizedTac,
       optimizations,
+      basicBlocks,
+      registerAllocation,
       assembly,
+      metrics,
       phases: {
         lexical: lexicalStatus,
         syntax: syntaxPhase,
@@ -171,19 +223,19 @@ export class CompilerPipeline {
           status: irStatus,
           executionTimeMs: irTime,
           itemCount: tac.length,
-          summary: `Generated ${tac.length} TAC instructions.`,
+          summary: `Generated ${tac.length} TAC instructions across ${basicBlocks.length} basic blocks.`,
         },
         optimizer: {
           status: optStatus,
           executionTimeMs: optTime,
           itemCount: optimizations.length,
-          summary: `Applied ${optimizations.length} optimization passes.`,
+          summary: `Applied ${optimizations.length} optimization passes (${metrics.sizeReductionPercent}% code reduction).`,
         },
         target: {
           status: targetStatus,
           executionTimeMs: targetTime,
           itemCount: assembly.length,
-          summary: `Generated ${assembly.length} x86-64 assembly instructions.`,
+          summary: `Generated ${assembly.length} x86-64 instructions with ${registerAllocation.maxPressure} register pressure.`,
         },
       },
     };

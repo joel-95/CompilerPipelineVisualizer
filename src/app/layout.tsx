@@ -5,7 +5,21 @@ import { Navbar } from '@/components/common/Navbar';
 export const metadata: Metadata = {
   title: 'Compiler Pipeline Visualizer | Software Architecture',
   description:
-    'Interactive educational compiler pipeline visualizer: Lexical Analysis, Syntax Tree Parsing, Semantic Analysis & Scoped Symbol Table.',
+    'Interactive educational compiler pipeline visualizer: Lexical Analysis, Syntax Tree Parsing, Semantic Analysis, Intermediate TAC, Optimizer & Target Code Generation.',
+  icons: {
+    icon: [
+      {
+        url: '/iconLightmode.png',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/iconDarkMode.png',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
+    shortcut: '/iconLightmode.png',
+    apple: '/iconDarkMode.png',
+  },
 };
 
 export default function RootLayout({

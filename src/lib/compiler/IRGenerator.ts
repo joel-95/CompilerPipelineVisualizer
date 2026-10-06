@@ -1,10 +1,11 @@
-// Three-Address Code (TAC) Generator
-// Walks the annotated AST and emits IR instructions.
+// Three-Address Code (TAC) Generator & Basic Block Partitioner
+// Walks the annotated AST, emits IR instructions, and constructs basic blocks.
 import {
   ASTNode,
   ProgramNode,
   TACInstruction,
   TACKind,
+  BasicBlock,
 } from './types';
 
 let _globalTacId = 0;
@@ -44,6 +45,110 @@ export class IRGenerator {
     return this.instructions;
   }
 
+  /**
+   * Partitions TAC instructions into Basic Blocks with CFG edges
+   */
+  public toBasicBlocks(instructions: TACInstruction[]): BasicBlock[] {
+    if (instructions.length === 0) return [];
+
+    const leaders = new Set<number>();
+    leaders.add(0); // First instruction is always a leader
+
+    // Find all leaders
+    instructions.forEach((instr, idx) => {
+      if (instr.kind === 'jump' || instr.kind === 'cjump') {
+        // Target of a jump is a leader
+        const targetIdx = instructions.findIndex(
+          (i) => i.kind === 'label' && i.label === instr.label
+        );
+        if (targetIdx !== -1) leaders.add(targetIdx);
+
+        // Instruction immediately following a jump is a leader
+        if (idx + 1 < instructions.length) leaders.add(idx + 1);
+      } else if (instr.kind === 'label') {
+        leaders.add(idx);
+      }
+    });
+
+    const sortedLeaders = Array.from(leaders).sort((a, b) => a - b);
+    const blocks: BasicBlock[] = [];
+
+    for (let i = 0; i < sortedLeaders.length; i++) {
+      const start = sortedLeaders[i];
+      const end = i + 1 < sortedLeaders.length ? sortedLeaders[i + 1] : instructions.length;
+      const blockInstrs = instructions.slice(start, end);
+      const firstLabel = blockInstrs.find((ins) => ins.kind === 'label')?.label;
+
+      blocks.push({
+        id: `block-${i}`,
+        name: firstLabel ? `B_${firstLabel}` : `B${i}`,
+        instructions: blockInstrs,
+        predecessors: [],
+        successors: [],
+      });
+    }
+
+    // Connect predecessors and successors
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i];
+      const lastInstr = block.instructions[block.instructions.length - 1];
+
+      if (!lastInstr) continue;
+
+      if (lastInstr.kind === 'jump') {
+        const targetBlock = blocks.find((b) =>
+          b.instructions.some((ins) => ins.kind === 'label' && ins.label === lastInstr.label)
+        );
+        if (targetBlock) {
+          block.successors.push(targetBlock.id);
+          targetBlock.predecessors.push(block.id);
+        }
+      } else if (lastInstr.kind === 'cjump') {
+        // Conditional branch: 2 successors (target + fallthrough)
+        const targetBlock = blocks.find((b) =>
+          b.instructions.some((ins) => ins.kind === 'label' && ins.label === lastInstr.label)
+        );
+        if (targetBlock) {
+          block.successors.push(targetBlock.id);
+          targetBlock.predecessors.push(block.id);
+        }
+        if (i + 1 < blocks.length) {
+          const fallthrough = blocks[i + 1];
+          block.successors.push(fallthrough.id);
+          fallthrough.predecessors.push(block.id);
+        }
+      } else if (lastInstr.kind !== 'return') {
+        // Fallthrough to next block
+        if (i + 1 < blocks.length) {
+          const nextBlock = blocks[i + 1];
+          block.successors.push(nextBlock.id);
+          nextBlock.predecessors.push(block.id);
+        }
+      }
+    }
+
+    return blocks;
+  }
+
+  /**
+   * Formats TAC instructions into clean, human-readable strings
+   */
+  public static format(instr: TACInstruction): string {
+    switch (instr.kind) {
+      case 'label':   return `${instr.label}:`;
+      case 'jump':    return `goto ${instr.label}`;
+      case 'cjump':   return `if ${instr.arg1} goto ${instr.label}`;
+      case 'param':   return `param ${instr.arg1}`;
+      case 'call':    return `${instr.result ? instr.result + ' = ' : ''}call ${instr.arg1}, ${instr.nArgs || 0}`;
+      case 'return':  return `return${instr.arg1 ? ' ' + instr.arg1 : ''}`;
+      case 'unary':   return `${instr.result} = ${instr.op}${instr.arg1}`;
+      case 'binary':  return `${instr.result} = ${instr.arg1} ${instr.op} ${instr.arg2}`;
+      case 'assign':
+      case 'copy':    return `${instr.result} = ${instr.arg1}`;
+      default:        return 'nop';
+    }
+  }
+
   private genNode(node: ASTNode): string | null {
     switch (node.type) {
       case 'VariableDeclaration':   return this.genVarDecl(node);
@@ -68,7 +173,7 @@ export class IRGenerator {
     const name = node.name as string;
     if (node.initializer) {
       const val = this.genNode(node.initializer as ASTNode);
-      this.emit('assign', { result: name, arg1: val ?? 'undefined', sourceLineRef: node.line });
+      this.emit('assign', { result: name, arg1: val ?? '0', sourceLineRef: node.line });
     } else {
       this.emit('assign', { result: name, arg1: '0', sourceLineRef: node.line });
     }
@@ -77,10 +182,8 @@ export class IRGenerator {
 
   private genFuncDecl(node: ASTNode): string {
     const name = node.name as string;
-    // Function entry label
     this.emit('label', { label: `func_${name}`, sourceLineRef: node.line });
 
-    // Params: emit a placeholder for each parameter binding
     const params = (node.params as any[]) || [];
     for (const p of params) {
       this.emit('param', { arg1: p.name, sourceLineRef: node.line });
@@ -148,7 +251,7 @@ export class IRGenerator {
   }
 
   private genFor(node: ASTNode): null {
-    if (node.init)   this.genNode(node.init as ASTNode);
+    if (node.init) this.genNode(node.init as ASTNode);
 
     const startLabel = this.newLabel('for_start_');
     const bodyLabel  = this.newLabel('for_body_');
@@ -181,15 +284,15 @@ export class IRGenerator {
   }
 
   private genAssignment(node: ASTNode): string {
-    const rightVal = this.genNode(node.right as ASTNode) ?? 'undefined';
+    const rightVal = this.genNode(node.right as ASTNode) ?? '0';
     const target   = (node.left as ASTNode).name as string;
     this.emit('assign', { result: target, arg1: rightVal, sourceLineRef: node.line });
     return target;
   }
 
   private genBinary(node: ASTNode): string {
-    const left  = this.genNode(node.left  as ASTNode) ?? '?';
-    const right = this.genNode(node.right as ASTNode) ?? '?';
+    const left  = this.genNode(node.left  as ASTNode) ?? '0';
+    const right = this.genNode(node.right as ASTNode) ?? '0';
     const temp  = this.newTemp();
     this.emit('binary', {
       result: temp,
@@ -202,7 +305,7 @@ export class IRGenerator {
   }
 
   private genUnary(node: ASTNode): string {
-    const arg  = this.genNode(node.argument as ASTNode) ?? '?';
+    const arg  = this.genNode(node.argument as ASTNode) ?? '0';
     const temp = this.newTemp();
     this.emit('unary', {
       result: temp,
@@ -215,9 +318,8 @@ export class IRGenerator {
 
   private genCall(node: ASTNode): string {
     const args = (node.args as ASTNode[]) || [];
-    // Push args in order
     for (const arg of args) {
-      const val = this.genNode(arg) ?? '?';
+      const val = this.genNode(arg) ?? '0';
       this.emit('param', { arg1: val, sourceLineRef: node.line });
     }
     const temp = this.newTemp();

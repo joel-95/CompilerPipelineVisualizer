@@ -15,6 +15,7 @@ export class SymbolTable {
   private currentScope: ScopeNode;
   private scopeCounter: number = 0;
   private allSymbols: SymbolEntry[] = [];
+  private builtInSymbols: Map<string, SymbolEntry> = new Map();
 
   constructor() {
     this.rootScope = {
@@ -26,15 +27,15 @@ export class SymbolTable {
       symbols: new Map(),
     };
     
-    // Inject standard C library built-ins
+    // Inject standard C library built-ins in lookup map
     const builtIns: SymbolEntry[] = [
       { id: 'sym-builtin-1', name: 'printf', type: 'function', returnType: 'void', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
       { id: 'sym-builtin-2', name: 'scanf', type: 'function', returnType: 'int', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
     ];
     
     for (const b of builtIns) {
+      this.builtInSymbols.set(b.name, b);
       this.rootScope.symbols.set(b.name, b);
-      this.allSymbols.push(b);
     }
 
     this.currentScope = this.rootScope;
@@ -76,7 +77,8 @@ export class SymbolTable {
    * Returns false if already declared in the current scope
    */
   public insert(symbol: Omit<SymbolEntry, 'id' | 'scope' | 'scopeLevel'>): SymbolEntry | null {
-    if (this.currentScope.symbols.has(symbol.name)) {
+    // Check if user already defined in current scope (or if trying to shadow built-in in local scope, allowed)
+    if (this.currentScope.symbols.has(symbol.name) && (!this.builtInSymbols.has(symbol.name) || this.currentScope !== this.rootScope)) {
       return null; // Redeclaration in same scope
     }
 
@@ -103,6 +105,9 @@ export class SymbolTable {
       }
       scope = scope.parent;
     }
+    if (this.builtInSymbols.has(name)) {
+      return this.builtInSymbols.get(name);
+    }
     return undefined;
   }
 
@@ -110,6 +115,11 @@ export class SymbolTable {
    * Looks up a symbol strictly in the current scope
    */
   public lookupCurrentScope(name: string): SymbolEntry | undefined {
+    if (this.currentScope === this.rootScope && this.builtInSymbols.has(name)) {
+      // If only the builtin exists, not a user declaration in current scope
+      const s = this.currentScope.symbols.get(name);
+      return s?.id.startsWith('sym-builtin') ? undefined : s;
+    }
     return this.currentScope.symbols.get(name);
   }
 
@@ -121,7 +131,10 @@ export class SymbolTable {
     return this.rootScope;
   }
 
-  public getAllSymbols(): SymbolEntry[] {
+  public getAllSymbols(includeBuiltins = false): SymbolEntry[] {
+    if (includeBuiltins) {
+      return [...this.allSymbols, ...Array.from(this.builtInSymbols.values())];
+    }
     return [...this.allSymbols];
   }
 
@@ -142,15 +155,8 @@ export class SymbolTable {
     this.scopeCounter = 0;
     this.allSymbols = [];
     
-    // Inject standard C library built-ins
-    const builtIns: SymbolEntry[] = [
-      { id: 'sym-builtin-1', name: 'printf', type: 'function', returnType: 'void', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
-      { id: 'sym-builtin-2', name: 'scanf', type: 'function', returnType: 'int', kind: 'function', scope: 'global', scopeLevel: 0, line: 0, column: 0, params: [{ name: 'format', type: 'string' }] },
-    ];
-    
-    for (const b of builtIns) {
+    for (const b of this.builtInSymbols.values()) {
       this.rootScope.symbols.set(b.name, b);
-      this.allSymbols.push(b);
     }
     
     this.currentScope = this.rootScope;

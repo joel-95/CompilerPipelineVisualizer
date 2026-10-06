@@ -14,37 +14,19 @@ import {
   Terminal,
 } from 'lucide-react';
 
-export const CompilerLogo: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    className={className}
-  >
-    <path
-      d="M4 6C4 4.89543 4.89543 4 6 4H9C10.1046 4 11 4.89543 11 6V9C11 10.1046 10.1046 11 9 11H6C4.89543 11 4 10.1046 4 9V6Z"
-      stroke="currentColor"
-      strokeWidth="1.8"
+export const CompilerLogo: React.FC<{ className?: string }> = ({ className = 'w-9 h-9' }) => (
+  <div className={`relative flex items-center justify-center ${className}`}>
+    <img
+      src="/iconLightmode.png"
+      alt="Compiler Pipeline Visualizer"
+      className="w-full h-full object-contain block dark:hidden"
     />
-    <path
-      d="M13 15C13 13.8954 13.8954 13 15 13H18C19.1046 13 20 13.8954 20 15V18C20 19.1046 19.1046 20 18 20H15C13.8954 20 13 19.1046 13 18V15Z"
-      stroke="currentColor"
-      strokeWidth="1.8"
+    <img
+      src="/iconDarkMode.png"
+      alt="Compiler Pipeline Visualizer"
+      className="w-full h-full object-contain hidden dark:block"
     />
-    <path
-      d="M7.5 11V16.5C7.5 17.3284 8.17157 18 9 18H13"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    />
-    <path
-      d="M11 7.5H14.5C15.3284 7.5 16 8.17157 16 9V13"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeDasharray="2 2"
-    />
-  </svg>
+  </div>
 );
 
 export const Navbar: React.FC = () => {
@@ -54,14 +36,14 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="border-b border-slate-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-md sticky top-0 z-50 transition-colors duration-150">
-      <div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Left: Branding & Minimal Version Tag */}
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shadow-sm">
-            <CompilerLogo className="w-4 h-4" />
+          <div className="w-10 h-10 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/60 flex items-center justify-center shadow-xs overflow-hidden p-1 transition-all hover:scale-105">
+            <CompilerLogo className="w-8 h-8" />
           </div>
           <div className="flex items-center gap-2.5">
-            <Link href="/" className="font-semibold text-sm tracking-tight text-slate-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
+            <Link href="/" className="font-bold text-base tracking-tight text-slate-900 dark:text-zinc-100 hover:text-indigo-600 dark:hover:text-indigo-400 transition">
               Compiler Pipeline Visualizer
             </Link>
             <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700/60 hidden sm:inline-block">
@@ -73,22 +55,22 @@ export const Navbar: React.FC = () => {
         {/* Center: Live Status Indicator */}
         <div className="hidden md:flex items-center gap-3">
           {isCompiling ? (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-400 text-xs font-mono animate-pulse">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-200 dark:border-indigo-500/30 text-indigo-700 dark:text-indigo-400 text-xs font-mono animate-pulse">
               <Activity className="w-3.5 h-3.5 animate-spin" />
               <span>Analyzing Pipeline...</span>
             </div>
           ) : totalErrors > 0 ? (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-mono">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 text-xs font-mono">
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>{totalErrors} Compile Error{totalErrors > 1 ? 's' : ''}</span>
             </div>
           ) : phases.lexical.status === 'success' ? (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-xs font-mono">
               <CheckCircle2 className="w-3.5 h-3.5" />
               <span>Pipeline Validated</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 text-xs font-mono">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 text-xs font-mono">
               <Terminal className="w-3.5 h-3.5" />
               <span>Ready</span>
             </div>
@@ -100,7 +82,7 @@ export const Navbar: React.FC = () => {
           <button
             onClick={() => compileAll()}
             disabled={isCompiling}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-xs font-medium text-white shadow-sm transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-xs font-medium text-white shadow-sm transition disabled:opacity-50"
             title="Compile code (Ctrl+Enter)"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
@@ -120,15 +102,14 @@ export const Navbar: React.FC = () => {
 
           <button
             onClick={toggleTheme}
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 border border-slate-200 dark:border-zinc-800 transition"
+            className="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-100 border border-slate-200 dark:border-zinc-800 transition"
             title="Toggle theme"
             aria-label="Toggle theme"
           >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-500" />}
           </button>
         </div>
       </div>
     </header>
   );
 };
-

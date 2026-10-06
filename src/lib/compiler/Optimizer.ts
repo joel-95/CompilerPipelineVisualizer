@@ -1,24 +1,11 @@
-// TAC Optimizer
-// Runs classical dataflow optimizations over the TAC instruction list.
-import { TACInstruction, OptimizationRecord, OptimizationKind } from './types';
+// TAC Optimizer (Ebin - Backend)
+// Runs Constant Folding, Constant Propagation, Copy Propagation, CSE, and Dead Code Elimination.
+import { TACInstruction, OptimizationRecord } from './types';
+import { IRGenerator } from './IRGenerator';
 
 let _optId = 0;
-function optId(): string { return `opt-${++_optId}`; }
-
-function tacToString(i: TACInstruction): string {
-  switch (i.kind) {
-    case 'binary':  return `${i.result} = ${i.arg1} ${i.op} ${i.arg2}`;
-    case 'unary':   return `${i.result} = ${i.op}${i.arg1}`;
-    case 'assign':
-    case 'copy':    return `${i.result} = ${i.arg1}`;
-    case 'label':   return `${i.label}:`;
-    case 'jump':    return `goto ${i.label}`;
-    case 'cjump':   return `if ${i.arg1} goto ${i.label}`;
-    case 'param':   return `param ${i.arg1}`;
-    case 'call':    return `${i.result} = call ${i.arg1}, ${i.nArgs}`;
-    case 'return':  return `return${i.arg1 ? ' ' + i.arg1 : ''}`;
-    default:        return 'nop';
-  }
+function optId(): string {
+  return `opt-${++_optId}`;
 }
 
 function isNumeric(s: string): boolean {
@@ -31,6 +18,7 @@ function foldBinary(a: number, op: string, b: number): number | null {
     case '-': return a - b;
     case '*': return a * b;
     case '/': return b !== 0 ? Math.floor(a / b) : null;
+    case '%': return b !== 0 ? a % b : null;
     case '<': return a < b  ? 1 : 0;
     case '>': return a > b  ? 1 : 0;
     case '<=': return a <= b ? 1 : 0;
@@ -44,37 +32,62 @@ function foldBinary(a: number, op: string, b: number): number | null {
 export interface OptimizationResult {
   optimized: TACInstruction[];
   records: OptimizationRecord[];
+  reductionPercent: number;
 }
 
 export class Optimizer {
   public optimize(instructions: TACInstruction[]): OptimizationResult {
     _optId = 0;
-    let current = instructions.map(i => ({ ...i })); // deep copy
+    let current = instructions.map((i) => ({ ...i }));
     const records: OptimizationRecord[] = [];
+    const initialCount = instructions.length;
 
-    // Run passes until stable (max 5 iterations)
-    for (let pass = 0; pass < 5; pass++) {
-      const before = current.length;
+    // Run passes until stable (up to 6 iterations)
+    for (let pass = 0; pass < 6; pass++) {
+      const beforeCount = current.length;
       current = this.constantFolding(current, records);
       current = this.constantPropagation(current, records);
       current = this.copyPropagation(current, records);
+      current = this.commonSubexpressionElimination(current, records);
       current = this.deadCodeElimination(current, records);
-      if (current.length === before) break; // stable
+
+      if (current.length === beforeCount && records.length > 0 && pass > 1) {
+        break; // Fixed point achieved
+      }
     }
 
-    return { optimized: current, records };
+    const reductionPercent = initialCount > 0
+      ? Number((((initialCount - current.length) / initialCount) * 100).toFixed(1))
+      : 0;
+
+    return {
+      optimized: current,
+      records,
+      reductionPercent: Math.max(0, reductionPercent),
+    };
   }
 
   // ── Pass 1: Constant Folding ──────────────────────────────────────────────
-  // binary result = 2 + 3  →  result = 5
   private constantFolding(instrs: TACInstruction[], records: OptimizationRecord[]): TACInstruction[] {
-    return instrs.map(i => {
+    return instrs.map((i) => {
       if (i.kind === 'binary' && i.arg1 && i.arg2 && i.op && isNumeric(i.arg1) && isNumeric(i.arg2)) {
         const folded = foldBinary(parseFloat(i.arg1), i.op, parseFloat(i.arg2));
         if (folded !== null) {
-          const before = tacToString(i);
-          const newInstr: TACInstruction = { ...i, kind: 'assign', arg1: String(folded), arg2: undefined, op: undefined };
-          records.push({ id: optId(), kind: 'constant-folding', description: `Folded compile-time constant expression`, before, after: tacToString(newInstr) });
+          const before = IRGenerator.format(i);
+          const newInstr: TACInstruction = {
+            ...i,
+            kind: 'assign',
+            arg1: String(folded),
+            arg2: undefined,
+            op: undefined,
+          };
+          records.push({
+            id: optId(),
+            kind: 'constant-folding',
+            description: `Folded constant expression: ${i.arg1} ${i.op} ${i.arg2} → ${folded}`,
+            before,
+            after: IRGenerator.format(newInstr),
+          });
           return newInstr;
         }
       }
@@ -83,13 +96,12 @@ export class Optimizer {
   }
 
   // ── Pass 2: Constant Propagation ─────────────────────────────────────────
-  // After t0 = 5, replace all uses of t0 with 5
   private constantPropagation(instrs: TACInstruction[], records: OptimizationRecord[]): TACInstruction[] {
     const constMap = new Map<string, string>();
 
-    return instrs.map(i => {
+    return instrs.map((i) => {
       let changed = false;
-      const before = tacToString(i);
+      const before = IRGenerator.format(i);
       let result = { ...i };
 
       // Substitute known constants into operands
@@ -105,29 +117,30 @@ export class Optimizer {
       // Track new constant definitions
       if ((result.kind === 'assign' || result.kind === 'copy') && result.result && result.arg1 && isNumeric(result.arg1)) {
         constMap.set(result.result, result.arg1);
-      }
-      // Invalidate if variable reassigned to non-const
-      if (result.result && constMap.has(result.result) && !(result.arg1 && isNumeric(result.arg1))) {
-        if (result.kind !== 'assign' && result.kind !== 'copy') {
-          constMap.delete(result.result);
-        }
+      } else if (result.result && constMap.has(result.result)) {
+        constMap.delete(result.result);
       }
 
       if (changed) {
-        records.push({ id: optId(), kind: 'constant-propagation', description: `Propagated constant value into operand`, before, after: tacToString(result) });
+        records.push({
+          id: optId(),
+          kind: 'constant-propagation',
+          description: `Propagated constant value into expression`,
+          before,
+          after: IRGenerator.format(result),
+        });
       }
       return result;
     });
   }
 
   // ── Pass 3: Copy Propagation ─────────────────────────────────────────────
-  // After t1 = x, replace uses of t1 with x
   private copyPropagation(instrs: TACInstruction[], records: OptimizationRecord[]): TACInstruction[] {
     const copyMap = new Map<string, string>();
 
-    return instrs.map(i => {
+    return instrs.map((i) => {
       let changed = false;
-      const before = tacToString(i);
+      const before = IRGenerator.format(i);
       let result = { ...i };
 
       const resolve = (v: string): string => {
@@ -140,29 +153,92 @@ export class Optimizer {
         return cur;
       };
 
-      if (result.arg1) { const r = resolve(result.arg1); if (r !== result.arg1) { result = { ...result, arg1: r }; changed = true; } }
-      if (result.arg2) { const r = resolve(result.arg2); if (r !== result.arg2) { result = { ...result, arg2: r }; changed = true; } }
+      if (result.arg1) {
+        const r = resolve(result.arg1);
+        if (r !== result.arg1) {
+          result = { ...result, arg1: r };
+          changed = true;
+        }
+      }
+      if (result.arg2) {
+        const r = resolve(result.arg2);
+        if (r !== result.arg2) {
+          result = { ...result, arg2: r };
+          changed = true;
+        }
+      }
 
       // Track copy assignments
       if ((result.kind === 'assign' || result.kind === 'copy') && result.result && result.arg1 && !isNumeric(result.arg1)) {
         copyMap.set(result.result, result.arg1);
-      }
-      // Invalidate if target reassigned
-      if (result.result) {
+      } else if (result.result) {
         copyMap.delete(result.result);
       }
 
       if (changed) {
-        records.push({ id: optId(), kind: 'copy-propagation', description: `Replaced redundant copy with original variable`, before, after: tacToString(result) });
+        records.push({
+          id: optId(),
+          kind: 'copy-propagation',
+          description: `Propagated copied variable alias`,
+          before,
+          after: IRGenerator.format(result),
+        });
       }
       return result;
     });
   }
 
-  // ── Pass 4: Dead Code Elimination ────────────────────────────────────────
-  // Remove instructions that write to temporaries never read anywhere
+  // ── Pass 4: Common Subexpression Elimination (CSE) ────────────────────────
+  private commonSubexpressionElimination(instrs: TACInstruction[], records: OptimizationRecord[]): TACInstruction[] {
+    const exprMap = new Map<string, string>(); // "arg1 op arg2" -> temp/variable
+
+    return instrs.map((i) => {
+      if (i.kind === 'label' || i.kind === 'jump' || i.kind === 'cjump') {
+        exprMap.clear(); // Clear across basic block boundaries
+        return i;
+      }
+
+      if (i.kind === 'binary' && i.result && i.arg1 && i.arg2 && i.op) {
+        const exprKey = `${i.arg1} ${i.op} ${i.arg2}`;
+        if (exprMap.has(exprKey)) {
+          const prevTarget = exprMap.get(exprKey)!;
+          const before = IRGenerator.format(i);
+          const newInstr: TACInstruction = {
+            ...i,
+            kind: 'copy',
+            arg1: prevTarget,
+            arg2: undefined,
+            op: undefined,
+          };
+          records.push({
+            id: optId(),
+            kind: 'common-subexpression-elimination',
+            description: `Eliminated common subexpression: reused ${prevTarget} for ${exprKey}`,
+            before,
+            after: IRGenerator.format(newInstr),
+          });
+          return newInstr;
+        } else {
+          exprMap.set(exprKey, i.result);
+        }
+      }
+
+      // Invalidate expressions when operands are overwritten
+      if (i.result) {
+        Array.from(exprMap.keys()).forEach((key) => {
+          const [left, , right] = key.split(' ');
+          if (left === i.result || right === i.result) {
+            exprMap.delete(key);
+          }
+        });
+      }
+
+      return i;
+    });
+  }
+
+  // ── Pass 5: Dead Code Elimination ────────────────────────────────────────
   private deadCodeElimination(instrs: TACInstruction[], records: OptimizationRecord[]): TACInstruction[] {
-    // Collect all read uses
     const used = new Set<string>();
     for (const i of instrs) {
       if (i.arg1) used.add(i.arg1);
@@ -170,27 +246,17 @@ export class Optimizer {
       if (i.label) used.add(i.label);
     }
 
-    // Collect all jump targets to protect labels
-    const jumpTargets = new Set<string>();
-    for (const i of instrs) {
-      if ((i.kind === 'jump' || i.kind === 'cjump') && i.label) {
-        jumpTargets.add(i.label);
-      }
-    }
-
-    return instrs.filter(i => {
-      // Keep all non-result-producing instructions
+    return instrs.filter((i) => {
       if (!i.result) return true;
-      // Keep if result is a named variable (not a temp)
+      // Keep user named variables, only prune dead temporary variables (e.g. t0, t1)
       if (!i.result.startsWith('t') || !/^\d+$/.test(i.result.slice(1))) return true;
-      // Keep if the temp is actually used somewhere
       if (used.has(i.result)) return true;
-      // Dead temporary — eliminate
+
       records.push({
         id: optId(),
         kind: 'dead-code-elimination',
-        description: `Removed unused temporary "${i.result}"`,
-        before: tacToString(i),
+        description: `Eliminated dead temporary variable: ${i.result}`,
+        before: IRGenerator.format(i),
         after: 'removed',
       });
       return false;

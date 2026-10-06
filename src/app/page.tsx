@@ -6,31 +6,46 @@ import { PipelineVisualizer } from '@/components/Pipeline/PipelineVisualizer';
 import { TokenList } from '@/components/TokenList/TokenList';
 import { SyntaxTreeViewer } from '@/components/SyntaxTree/SyntaxTreeViewer';
 import { SymbolTableViewer } from '@/components/SymbolTable/SymbolTableViewer';
+import { IRViewer } from '@/components/Pipeline/IRViewer';
+import { OptimizerViewer } from '@/components/Pipeline/OptimizerViewer';
+import { TargetCodeViewer } from '@/components/Pipeline/TargetCodeViewer';
+import { DebuggerPanel } from '@/components/Debugger/DebuggerPanel';
 import { ErrorPanel } from '@/components/ErrorPanel/ErrorPanel';
 import { InfoPanel } from '@/components/InfoPanel/InfoPanel';
+import { HistoryModal } from '@/components/common/HistoryModal';
+import { SettingsModal } from '@/components/common/SettingsModal';
+import { ExportModal } from '@/components/common/ExportModal';
 import { useCompilerStore, CompilerPhaseKey } from '@/lib/store/useCompilerStore';
 import {
   Binary,
   Network,
   Database,
+  ListTree,
+  Zap,
+  Cpu,
+  Activity,
   Terminal,
   Info,
-  Layers,
 } from 'lucide-react';
 
 export default function Home() {
   const {
+    initFromStorage,
     compileAll,
     activePhase,
     setActivePhase,
     tokens,
     ast,
     symbolTable,
+    tac,
+    optimizations,
+    assembly,
     errors,
   } = useCompilerStore();
 
-  // Auto compile on initial render
+  // Initialize store from localStorage after mount & compile on initial render
   useEffect(() => {
+    initFromStorage();
     compileAll();
   }, []);
 
@@ -62,6 +77,33 @@ export default function Home() {
       count: symbolTable.length,
     },
     {
+      key: 'intermediate',
+      label: 'Intermediate (TAC)',
+      icon: ListTree,
+      count: tac.length,
+      badgeVariant: 'purple',
+    },
+    {
+      key: 'optimizer',
+      label: 'Optimizer',
+      icon: Zap,
+      count: optimizations.length,
+      badgeVariant: 'amber',
+    },
+    {
+      key: 'target',
+      label: 'Target Code',
+      icon: Cpu,
+      count: assembly.length,
+      badgeVariant: 'blue',
+    },
+    {
+      key: 'debugger',
+      label: 'Virtual CPU',
+      icon: Activity,
+      badgeVariant: 'emerald',
+    },
+    {
       key: 'errors',
       label: 'Diagnostics',
       icon: Terminal,
@@ -83,6 +125,14 @@ export default function Home() {
         return <SyntaxTreeViewer />;
       case 'semantic':
         return <SymbolTableViewer />;
+      case 'intermediate':
+        return <IRViewer />;
+      case 'optimizer':
+        return <OptimizerViewer />;
+      case 'target':
+        return <TargetCodeViewer />;
+      case 'debugger':
+        return <DebuggerPanel />;
       case 'errors' as any:
         return <ErrorPanel />;
       case 'inspector' as any:
@@ -99,15 +149,15 @@ export default function Home() {
 
       {/* Main 2-Column Responsive Workspace */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 items-stretch">
-        {/* Left Column: Monaco Code Editor (5 cols on lg, 6 on xl) */}
-        <div className="lg:col-span-6 xl:col-span-5 flex flex-col h-[580px] lg:h-[calc(100vh-210px)]">
+        {/* Left Column: Monaco Code Editor (5 cols on lg, 5 on xl) */}
+        <div className="lg:col-span-5 xl:col-span-5 flex flex-col h-[600px] lg:h-[calc(100vh-210px)]">
           <CodeEditor />
         </div>
 
         {/* Right Column: Visualization Tabs & Inspector (7 cols on lg, 7 on xl) */}
-        <div className="lg:col-span-6 xl:col-span-7 flex flex-col h-[580px] lg:h-[calc(100vh-200px)] bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm overflow-hidden transition-colors duration-150">
+        <div className="lg:col-span-7 xl:col-span-7 flex flex-col h-[600px] lg:h-[calc(100vh-200px)] bg-white dark:bg-zinc-950 rounded-xl border border-slate-200 dark:border-zinc-800 shadow-sm overflow-hidden transition-colors duration-150">
           {/* Tab Header Bar */}
-          <div className="flex items-center justify-between px-3 bg-slate-50 dark:bg-zinc-900/90 border-b border-slate-200 dark:border-zinc-800 overflow-x-auto scrollbar-none">
+          <div className="flex items-center justify-between px-3 bg-slate-50 dark:bg-zinc-900/90 border-b border-slate-200 dark:border-zinc-800 overflow-x-auto scrollbar-thin">
             <div className="flex items-center gap-1 py-1.5">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -129,6 +179,12 @@ export default function Home() {
                         className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-medium ${
                           tab.badgeVariant === 'rose'
                             ? 'bg-rose-100 dark:bg-rose-500/20 text-rose-700 dark:text-rose-300 font-bold'
+                            : tab.badgeVariant === 'purple'
+                            ? 'bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300'
+                            : tab.badgeVariant === 'amber'
+                            ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300'
+                            : tab.badgeVariant === 'blue'
+                            ? 'bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
                             : isActive
                             ? 'bg-indigo-100 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300'
                             : 'bg-slate-200/80 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400'
@@ -149,6 +205,11 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <HistoryModal />
+      <SettingsModal />
+      <ExportModal />
     </div>
   );
 }

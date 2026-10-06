@@ -1,5 +1,5 @@
 // Database Repository for Compilation Sessions, Tokens, AST, Symbols, IR, and Errors
-import { prisma } from './prisma';
+import { getPrisma } from './prisma';
 import { PipelineResult, CompilationError } from '../compiler/types';
 
 // In-memory session store fallback if database is not reachable locally
@@ -40,6 +40,11 @@ export class CompilationRepository {
     // Cache in memory fallback
     inMemorySessions.set(sessionId, result);
     inMemoryErrors.set(sessionId, errors);
+
+    const prisma = getPrisma();
+    if (!prisma) {
+      return sessionId;
+    }
 
     try {
       const session = await prisma.compilationSession.create({
@@ -108,33 +113,36 @@ export class CompilationRepository {
    */
   public static async listSessions(): Promise<SessionSummary[]> {
     const summaries: SessionSummary[] = [];
+    const prisma = getPrisma();
 
-    try {
-      const dbSessions = await prisma.compilationSession.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: 30,
-        include: {
-          compilationErrors: true,
-          tokens: true,
-          intermediateCode: true,
-        },
-      });
+    if (prisma) {
+      try {
+        const dbSessions = await prisma.compilationSession.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 30,
+          include: {
+            compilationErrors: true,
+            tokens: true,
+            intermediateCode: true,
+          },
+        });
 
-      if (dbSessions && dbSessions.length > 0) {
-        return dbSessions.map((s) => ({
-          id: s.id,
-          userId: s.userId || 'anonymous',
-          sourceSnippet: s.sourceCode.slice(0, 80).replace(/\n/g, ' ') + (s.sourceCode.length > 80 ? '...' : ''),
-          createdAt: s.createdAt.toISOString(),
-          status: s.compilationErrors.some((e) => e.severity === 'ERROR') ? 'error' : 'success',
-          errorCount: s.compilationErrors.length,
-          tokenCount: s.tokens.length,
-          irCount: s.intermediateCode.length,
-          asmCount: 0,
-        }));
+        if (dbSessions && dbSessions.length > 0) {
+          return dbSessions.map((s) => ({
+            id: s.id,
+            userId: s.userId || 'anonymous',
+            sourceSnippet: s.sourceCode.slice(0, 80).replace(/\n/g, ' ') + (s.sourceCode.length > 80 ? '...' : ''),
+            createdAt: s.createdAt.toISOString(),
+            status: s.compilationErrors.some((e) => e.severity === 'ERROR') ? 'error' : 'success',
+            errorCount: s.compilationErrors.length,
+            tokenCount: s.tokens.length,
+            irCount: s.intermediateCode.length,
+            asmCount: 0,
+          }));
+        }
+      } catch (err) {
+        // Memory fallback
       }
-    } catch (err) {
-      // Memory fallback
     }
 
     // In-memory fallback
@@ -159,23 +167,26 @@ export class CompilationRepository {
    * Retrieves errors for a specific compilation session
    */
   public static async getErrorsBySessionId(sessionId: string): Promise<CompilationError[]> {
-    try {
-      const dbErrors = await prisma.compilationError.findMany({
-        where: { sessionId },
-      });
+    const prisma = getPrisma();
+    if (prisma) {
+      try {
+        const dbErrors = await prisma.compilationError.findMany({
+          where: { sessionId },
+        });
 
-      if (dbErrors && dbErrors.length > 0) {
-        return dbErrors.map((e) => ({
-          id: e.id,
-          phase: e.phase as any,
-          severity: e.severity as any,
-          message: e.errorMsg,
-          line: e.line || 1,
-          column: e.column || 1,
-        }));
+        if (dbErrors && dbErrors.length > 0) {
+          return dbErrors.map((e) => ({
+            id: e.id,
+            phase: e.phase as any,
+            severity: e.severity as any,
+            message: e.errorMsg,
+            line: e.line || 1,
+            column: e.column || 1,
+          }));
+        }
+      } catch (err) {
+        // fallback
       }
-    } catch (err) {
-      // fallback
     }
 
     return inMemoryErrors.get(sessionId) || [];
@@ -185,20 +196,23 @@ export class CompilationRepository {
    * Retrieves full session by ID
    */
   public static async getSession(sessionId: string): Promise<any | null> {
-    try {
-      const session = await prisma.compilationSession.findUnique({
-        where: { id: sessionId },
-        include: {
-          tokens: true,
-          syntaxTrees: true,
-          symbolEntries: true,
-          intermediateCode: true,
-          compilationErrors: true,
-        },
-      });
-      if (session) return session;
-    } catch (err) {
-      // fallback
+    const prisma = getPrisma();
+    if (prisma) {
+      try {
+        const session = await prisma.compilationSession.findUnique({
+          where: { id: sessionId },
+          include: {
+            tokens: true,
+            syntaxTrees: true,
+            symbolEntries: true,
+            intermediateCode: true,
+            compilationErrors: true,
+          },
+        });
+        if (session) return session;
+      } catch (err) {
+        // fallback
+      }
     }
 
     return inMemorySessions.get(sessionId) || null;
@@ -211,13 +225,18 @@ export class CompilationRepository {
     inMemorySessions.delete(sessionId);
     inMemoryErrors.delete(sessionId);
 
-    try {
-      await prisma.compilationSession.delete({
-        where: { id: sessionId },
-      });
-      return true;
-    } catch (err) {
-      return true;
+    const prisma = getPrisma();
+    if (prisma) {
+      try {
+        await prisma.compilationSession.delete({
+          where: { id: sessionId },
+        });
+        return true;
+      } catch (err) {
+        return true;
+      }
     }
+
+    return true;
   }
 }

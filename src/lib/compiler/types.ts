@@ -21,7 +21,7 @@ export interface Token {
 }
 
 export type ErrorSeverity = 'ERROR' | 'WARNING';
-export type CompilerPhase = 'LEXICAL' | 'SYNTAX' | 'SEMANTIC' | 'INTERMEDIATE' | 'OPTIMIZER' | 'TARGET';
+export type CompilerPhase = 'LEXICAL' | 'SYNTAX' | 'SEMANTIC' | 'INTERMEDIATE' | 'OPTIMIZER' | 'TARGET' | 'STATIC_ANALYSIS';
 
 export interface CompilationError {
   id: string;
@@ -190,13 +190,22 @@ export interface TACInstruction {
   sourceLineRef?: number;
 }
 
+export interface BasicBlock {
+  id: string;
+  name: string;
+  instructions: TACInstruction[];
+  predecessors: string[];
+  successors: string[];
+}
+
 // ─── Optimizer ───────────────────────────────────────────────────────────────
 
 export type OptimizationKind =
   | 'constant-folding'
   | 'dead-code-elimination'
   | 'copy-propagation'
-  | 'constant-propagation';
+  | 'constant-propagation'
+  | 'common-subexpression-elimination';
 
 export interface OptimizationRecord {
   id: string;
@@ -204,6 +213,31 @@ export interface OptimizationRecord {
   description: string;
   before: string;   // human-readable before
   after: string;    // human-readable after (or 'removed')
+}
+
+// ─── Register Allocation ───────────────────────────────────────────────────
+
+export interface LiveRange {
+  variable: string;
+  start: number;
+  end: number;
+}
+
+export interface InterferenceGraph {
+  nodes: string[];
+  edges: [string, string][];
+  adjacency: Record<string, string[]>;
+}
+
+export interface RegisterAllocationResult {
+  allocations: Record<string, string>; // var/temp -> register (e.g. "t0" -> "rax")
+  spills: string[];                    // variables spilled to stack
+  spillOffsets: Record<string, number>;// var -> offset (e.g. "t5" -> -8)
+  interferenceGraph: InterferenceGraph;
+  liveRanges: LiveRange[];
+  registerPressure: { line: number; activeVariables: string[]; pressureCount: number }[];
+  maxPressure: number;
+  availableRegisters: string[];
 }
 
 // ─── Target Code (pseudo-assembly) ──────────────────────────────────────────
@@ -218,6 +252,31 @@ export interface AsmInstruction {
   labelName?: string;
 }
 
+// ─── Metrics & Debugging Simulation ─────────────────────────────────────────
+
+export interface CompilationMetrics {
+  cyclomaticComplexity: number;
+  astDepth: number;
+  tokenCount: number;
+  lineCount: number;
+  tacCount: number;
+  optimizedTacCount: number;
+  asmCount: number;
+  sizeReductionPercent: number;
+  spillCount: number;
+}
+
+export interface SimulationStep {
+  step: number;
+  instructionIndex: number;
+  instructionText: string;
+  sourceLineRef?: number;
+  registers: Record<string, number | string | boolean>;
+  stack: { offset: number; name?: string; value: any }[];
+  output: string[];
+  memory: Record<string, any>;
+}
+
 // ─── Pipeline Result ─────────────────────────────────────────────────────────
 
 export interface PipelineResult {
@@ -230,7 +289,10 @@ export interface PipelineResult {
   tac: TACInstruction[];
   optimizedTac: TACInstruction[];
   optimizations: OptimizationRecord[];
+  basicBlocks: BasicBlock[];
+  registerAllocation: RegisterAllocationResult;
   assembly: AsmInstruction[];
+  metrics: CompilationMetrics;
   phases: {
     lexical: PhaseStatus;
     syntax: PhaseStatus;

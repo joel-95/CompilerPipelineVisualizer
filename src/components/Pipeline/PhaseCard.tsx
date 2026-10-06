@@ -6,10 +6,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  ArrowRight,
-  Layers,
-  Sparkles,
-  Lock,
+  Zap,
 } from 'lucide-react';
 
 interface PhaseCardProps {
@@ -27,7 +24,6 @@ export const PhaseCard: React.FC<PhaseCardProps> = ({
   title,
   subtitle,
   itemUnit,
-  isPhase2 = false,
 }) => {
   const { activePhase, setActivePhase, phases } = useCompilerStore();
   const phaseData = phases[phaseKey as keyof typeof phases] || {
@@ -39,14 +35,6 @@ export const PhaseCard: React.FC<PhaseCardProps> = ({
   const isActive = activePhase === phaseKey;
 
   const getStatusBadge = () => {
-    if (isPhase2) {
-      return (
-        <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700">
-          <Lock className="w-2.5 h-2.5" /> Spec
-        </span>
-      );
-    }
-
     switch (phaseData.status) {
       case 'success':
         return (
@@ -75,7 +63,7 @@ export const PhaseCard: React.FC<PhaseCardProps> = ({
       default:
         return (
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400 border border-slate-200 dark:border-zinc-700 font-mono">
-            Idle
+            Ready
           </span>
         );
     }
@@ -86,8 +74,8 @@ export const PhaseCard: React.FC<PhaseCardProps> = ({
       onClick={() => setActivePhase(phaseKey)}
       className={`relative flex-1 min-w-[150px] p-3 text-left rounded-xl border transition-all duration-150 ${
         isActive
-          ? 'bg-indigo-50/50 dark:bg-zinc-900/90 border-indigo-500/80 shadow-sm ring-1 ring-indigo-500/30'
-          : 'bg-slate-50/70 hover:bg-slate-100/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/80 border-slate-200/80 dark:border-zinc-800/80'
+          ? 'bg-indigo-50/70 dark:bg-zinc-900 border-indigo-500 shadow-sm ring-1 ring-indigo-500/40'
+          : 'bg-slate-50/70 hover:bg-slate-100 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/80 border-slate-200/80 dark:border-zinc-800/80'
       }`}
     >
       {/* Top row: step number + status */}

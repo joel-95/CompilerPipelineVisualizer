@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useCompilerStore } from '@/lib/store/useCompilerStore';
 import { EditorControls } from './EditorControls';
 
-// Dynamically import Monaco Editor to ensure SSR safety
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
   ssr: false,
   loading: () => (
@@ -16,8 +15,16 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 });
 
 export const CodeEditor: React.FC = () => {
-  const { sourceCode, setSourceCode, fontSize, theme, compileAll } = useCompilerStore();
+  const { sourceCode, setSourceCode, fontSize, theme, compileAll, highlightedLine } = useCompilerStore();
   const editorRef = useRef<any>(null);
+  const decorationsRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    if (editorRef.current && highlightedLine) {
+      editorRef.current.revealLineInCenter(highlightedLine);
+      editorRef.current.setPosition({ lineNumber: highlightedLine, column: 1 });
+    }
+  }, [highlightedLine]);
 
   const handleEditorDidMount = (editor: any, monaco: any) => {
     editorRef.current = editor;
@@ -25,12 +32,6 @@ export const CodeEditor: React.FC = () => {
     // Register Ctrl+Enter / Cmd+Enter shortcut to compile
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
       compileAll();
-    });
-
-    // Custom syntax styling tweak for C-like language
-    monaco.languages.typescript?.javascriptDefaults?.setDiagnosticsOptions({
-      noSemanticValidation: true,
-      noSyntaxValidation: true,
     });
   };
 

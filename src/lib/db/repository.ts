@@ -1,4 +1,4 @@
-// Database Repository for Compilation Sessions, Tokens, AST, Symbols, and Errors
+// Database Repository for Compilation Sessions, Tokens, AST, Symbols, IR, and Errors
 import { prisma } from './prisma';
 import { PipelineResult, CompilationError } from '../compiler/types';
 
@@ -18,19 +18,30 @@ if (process.env.NODE_ENV !== 'production') {
   globalThis.cpvErrors = inMemoryErrors;
 }
 
+export interface SessionSummary {
+  id: string;
+  userId: string;
+  sourceSnippet: string;
+  createdAt: string;
+  status: string;
+  errorCount: number;
+  tokenCount: number;
+  irCount: number;
+  asmCount: number;
+}
+
 export class CompilationRepository {
   /**
    * Persists a complete compilation result into the database (or memory fallback)
    */
   public static async saveSession(result: PipelineResult, userId?: string): Promise<string> {
-    const { sessionId, sourceCode, tokens, ast, symbolTable, errors } = result;
+    const { sessionId, sourceCode, tokens, ast, symbolTable, errors, tac, assembly } = result;
 
     // Cache in memory fallback
     inMemorySessions.set(sessionId, result);
     inMemoryErrors.set(sessionId, errors);
 
     try {
-      // Check if DB is reachable
       const session = await prisma.compilationSession.create({
         data: {
           id: sessionId,
@@ -67,6 +78,12 @@ export class CompilationRepository {
               }),
             })),
           },
+          intermediateCode: {
+            create: tac.map((instr, idx) => ({
+              irCode: JSON.stringify(instr),
+              lineNumber: idx + 1,
+            })),
+          },
           compilationErrors: {
             create: errors.map((e) => ({
               phase: e.phase,
@@ -81,9 +98,61 @@ export class CompilationRepository {
 
       return session.id;
     } catch (err) {
-      console.warn('Database persistence skipped or failed (operating with memory store fallback):', (err as Error).message);
+      console.warn('Database persistence skipped (using memory store fallback):', (err as Error).message);
       return sessionId;
     }
+  }
+
+  /**
+   * Retrieves all compilation sessions summaries
+   */
+  public static async listSessions(): Promise<SessionSummary[]> {
+    const summaries: SessionSummary[] = [];
+
+    try {
+      const dbSessions = await prisma.compilationSession.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        include: {
+          compilationErrors: true,
+          tokens: true,
+          intermediateCode: true,
+        },
+      });
+
+      if (dbSessions && dbSessions.length > 0) {
+        return dbSessions.map((s) => ({
+          id: s.id,
+          userId: s.userId || 'anonymous',
+          sourceSnippet: s.sourceCode.slice(0, 80).replace(/\n/g, ' ') + (s.sourceCode.length > 80 ? '...' : ''),
+          createdAt: s.createdAt.toISOString(),
+          status: s.compilationErrors.some((e) => e.severity === 'ERROR') ? 'error' : 'success',
+          errorCount: s.compilationErrors.length,
+          tokenCount: s.tokens.length,
+          irCount: s.intermediateCode.length,
+          asmCount: 0,
+        }));
+      }
+    } catch (err) {
+      // Memory fallback
+    }
+
+    // In-memory fallback
+    for (const [id, res] of inMemorySessions.entries()) {
+      summaries.push({
+        id,
+        userId: 'anonymous',
+        sourceSnippet: res.sourceCode.slice(0, 80).replace(/\n/g, ' ') + (res.sourceCode.length > 80 ? '...' : ''),
+        createdAt: new Date().toISOString(),
+        status: res.errors?.some((e: any) => e.severity === 'ERROR') ? 'error' : 'success',
+        errorCount: res.errors?.length || 0,
+        tokenCount: res.tokens?.length || 0,
+        irCount: res.tac?.length || 0,
+        asmCount: res.assembly?.length || 0,
+      });
+    }
+
+    return summaries.reverse();
   }
 
   /**
@@ -106,7 +175,7 @@ export class CompilationRepository {
         }));
       }
     } catch (err) {
-      console.warn('Using memory store for error lookup:', (err as Error).message);
+      // fallback
     }
 
     return inMemoryErrors.get(sessionId) || [];
@@ -123,6 +192,7 @@ export class CompilationRepository {
           tokens: true,
           syntaxTrees: true,
           symbolEntries: true,
+          intermediateCode: true,
           compilationErrors: true,
         },
       });
@@ -132,5 +202,22 @@ export class CompilationRepository {
     }
 
     return inMemorySessions.get(sessionId) || null;
+  }
+
+  /**
+   * Deletes a compilation session
+   */
+  public static async deleteSession(sessionId: string): Promise<boolean> {
+    inMemorySessions.delete(sessionId);
+    inMemoryErrors.delete(sessionId);
+
+    try {
+      await prisma.compilationSession.delete({
+        where: { id: sessionId },
+      });
+      return true;
+    } catch (err) {
+      return true;
+    }
   }
 }

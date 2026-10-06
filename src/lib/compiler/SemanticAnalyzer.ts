@@ -17,7 +17,6 @@ import {
   IdentifierNode,
   CallNode,
   DataType,
-  SymbolEntry,
 } from './types';
 import { SymbolTable } from './SymbolTable';
 import { ErrorManager } from './ErrorManager';
@@ -40,7 +39,8 @@ export class SemanticAnalyzer {
     this.symbolTable.reset();
     this.currentFunction = null;
 
-    for (const statement of ast.body) {
+    for (let i = 0; i < ast.body.length; i++) {
+      const statement = ast.body[i];
       this.analyzeNode(statement);
     }
 
@@ -497,8 +497,6 @@ export class SemanticAnalyzer {
     }
 
     const expectedParams = symbol.params || [];
-    
-    // Special case for variadic built-in C functions like printf and scanf
     const isVariadic = node.callee === 'printf' || node.callee === 'scanf';
 
     if (!isVariadic && node.args.length !== expectedParams.length) {
@@ -517,13 +515,12 @@ export class SemanticAnalyzer {
       const argType = this.analyzeNode(argExpr);
       argExpr.inferredType = argType;
 
-      // Only type-check non-variadic arguments
       if (!isVariadic && i < expectedParams.length) {
         const expectedType = expectedParams[i].type;
         if (!this.areTypesCompatible(expectedType, argType)) {
           this.errorManager.addError(
             'SEMANTIC',
-            `Argument ${i + 1} of '${node.callee}' must be '${expectedType}', got '${argType}'`,
+            `Argument ${i + 1} of '${node.callee}' expects type '${expectedType}', got '${argType}'`,
             argExpr.line,
             argExpr.column,
             `Match the parameter type '${expectedType}'.`
@@ -564,7 +561,6 @@ export class SemanticAnalyzer {
   private areTypesCompatible(target: DataType, source: DataType): boolean {
     if (target === source) return true;
     if (target === 'unknown' || source === 'unknown') return true;
-    // Widening conversion: int can be assigned to float
     if (target === 'float' && source === 'int') return true;
     return false;
   }

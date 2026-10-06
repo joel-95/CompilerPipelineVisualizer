@@ -3,6 +3,8 @@ import { TargetCodeGenerator } from '@/lib/compiler/TargetCodeGenerator';
 import { RegisterAllocator } from '@/lib/compiler/RegisterAllocator';
 import { CompilerPipeline } from '@/lib/compiler/Pipeline';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

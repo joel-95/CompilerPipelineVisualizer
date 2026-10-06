@@ -3,6 +3,8 @@ import { LexicalAnalyzer } from '@/lib/compiler/LexicalAnalyzer';
 import { SyntaxAnalyzer } from '@/lib/compiler/SyntaxAnalyzer';
 import { ErrorManager } from '@/lib/compiler/ErrorManager';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

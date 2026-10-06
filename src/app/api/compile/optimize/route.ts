@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Optimizer } from '@/lib/compiler/Optimizer';
 import { CompilerPipeline } from '@/lib/compiler/Pipeline';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

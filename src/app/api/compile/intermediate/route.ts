@@ -6,6 +6,8 @@ import { IRGenerator } from '@/lib/compiler/IRGenerator';
 import { SymbolTable } from '@/lib/compiler/SymbolTable';
 import { ErrorManager } from '@/lib/compiler/ErrorManager';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const { sourceCode } = await req.json();

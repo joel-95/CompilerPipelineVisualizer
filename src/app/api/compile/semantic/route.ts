@@ -5,6 +5,8 @@ import { SemanticAnalyzer } from '@/lib/compiler/SemanticAnalyzer';
 import { SymbolTable } from '@/lib/compiler/SymbolTable';
 import { ErrorManager } from '@/lib/compiler/ErrorManager';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

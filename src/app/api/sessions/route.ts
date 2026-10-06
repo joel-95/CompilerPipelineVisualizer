@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { CompilationRepository } from '@/lib/db/repository';
 import { CompilerPipeline } from '@/lib/compiler/Pipeline';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const sessions = await CompilationRepository.listSessions();
